@@ -1,0 +1,107 @@
+{
+    "porosity": {
+        "min": 0.15468931198120117,
+        "max": 0.31737518310546875,
+        "mean": 0.21680907905101776,
+        "std": 0.030885443091392517
+    },
+    "surface": {
+        "min": 882.4769897460938,
+        "max": 1475.5665283203125,
+        "mean": 1166.0452880859375,
+        "std": 113.94213104248047
+    },
+    "conn": {
+        "min": 0.9714437127113342,
+        "max": 0.9981027841567993,
+        "mean": 0.9927379488945007,
+        "std": 0.0034161589574068785
+    },
+    "mean_pore": {
+        "min": 0.07339129596948624,
+        "max": 0.0872381329536438,
+        "mean": 0.07708229124546051,
+        "std": 0.0023423770908266306
+    },
+    "std_pore": {
+        "min": 0.027700873091816902,
+        "max": 0.04829230532050133,
+        "mean": 0.032859668135643005,
+        "std": 0.0035158952232450247
+    },
+    "max_pore": {
+        "min": 0.28121763467788696,
+        "max": 0.7641986012458801,
+        "mean": 0.38095617294311523,
+        "std": 0.06090221554040909
+    },
+    "mean_particle": {
+        "min": 0.0792941227555275,
+        "max": 0.28149840235710144,
+        "mean": 0.13387463986873627,
+        "std": 0.03621898218989372
+    },
+    "std_particle": {
+        "min": 0.340493768453598,
+        "max": 0.9805789589881897,
+        "mean": 0.5862315893173218,
+        "std": 0.12598147988319397
+    },
+    "max_particle": {
+        "min": 4.063051700592041,
+        "max": 4.363338947296143,
+        "mean": 4.252837657928467,
+        "std": 0.05663950368762016
+    },
+    "tau_z": {
+        "min": 3.268130302429199,
+        "max": 9.65748405456543,
+        "mean": 5.6554107666015625,
+        "std": 1.0922883749008179
+    },
+    "deff_z": {
+        "min": 0.0163851547986269,
+        "max": 0.09553057700395584,
+        "mean": 0.040865734219551086,
+        "std": 0.014210337772965431
+    },
+    "is_percolating_z": {
+        "min": 1.0,
+        "max": 1.0,
+        "mean": 1.0,
+        "std": 0.0
+    },
+    "_units": {
+        "porosity": "dimensionless",
+        "surface": "1/um",
+        "conn": "dimensionless",
+        "mean_pore": "um",
+        "std_pore": "um",
+        "max_pore": "um",
+        "mean_particle": "um",
+        "std_particle": "um",
+        "max_particle": "um",
+        "tau_z": "dimensionless",
+        "deff_z": "relative",
+        "is_percolating_z": "binary"
+    },
+    "_voxel_size_um": {
+        "Y": 0.0315,
+        "Z": 0.02791,
+        "X": 0.02791
+    },
+    "_transport_definition": {
+        "transport_phase": "pore phase",
+        "transport_direction": "Z (through-plane)",
+        "input_volume_order": "[Y, Z, X]",
+        "taufactor_solver_order": "[Z, Y, X]",
+        "taufactor_phase_convention": "1=conductive(pore), 0=blocking(solid)",
+        "non_percolating_tau_value": 1000000.0
+    },
+    "_recommended_condition_keys": [
+        "porosity",
+        "surface_area",
+        "tau_z",
+        "deff_z"
+    ]
+}
