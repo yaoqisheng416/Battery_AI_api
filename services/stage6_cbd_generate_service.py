@@ -88,7 +88,7 @@ def generate_cbd_service(
 
     out_dir = os.path.join(
         task_root_dir,
-        "out_put",
+        "output",
         "cbd_gen_result_best_sample",
         "three_phase"
     )

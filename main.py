@@ -462,7 +462,7 @@ def download_file(
         "workspace",
         "tasks",
         task_id,
-        "out_put",
+        "output",
         file_name,
     )
 
@@ -487,7 +487,7 @@ def list_task_results(task_id: str):
     logger.info(f"📥 请求：task_id={task_id}")
 
     # ✅ 构建标准化路径
-    output_dir = f"workspace/tasks/{task_id}/out_put"
+    output_dir = f"workspace/tasks/{task_id}/output"
     output_dir = output_dir.replace("\\", "/")
 
     # ✅ 转换为绝对路径
