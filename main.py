@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -351,58 +352,99 @@ def get_model_versions():
 @app.post("/upload/files")
 async def upload_best_two_phase_structure(
         file: UploadFile = File(...),
-        title: str = Form(...),  # ✅ 新增：从表单传入 title
+        title: str = Form(...),
 ):
     """
-    上传文件到 Workspace
-
-    Args:
-        file: 上传的文件
-        title: 任务标题（从请求中传入）
+    上传文件到 Workspace（支持单个文件或 ZIP 压缩包）
     """
     # ============================================
-    # 创建任务（使用传入的 title）
+    # 创建任务
     # ============================================
-    task_id = create_task(
-        title=title  # ✅ 使用传入的 title，不再写死
-    )
+    task_id = create_task(title=title)
 
     # ============================================
     # workspace
     # ============================================
-    task_root = os.path.join(
-        "workspace",
-        "tasks",
-        task_id,
-    )
-
-    input_dir = os.path.join(
-        task_root,
-        "input"
-    )
-
-    os.makedirs(
-        input_dir,
-        exist_ok=True
-    )
+    task_root = os.path.join("workspace", "tasks", task_id)
+    input_dir = os.path.join(task_root, "input")
+    os.makedirs(input_dir, exist_ok=True)
 
     # ============================================
-    # save file
+    # 保存文件
     # ============================================
-    save_path = os.path.join(
-        input_dir,
-        file.filename
-    )
+    save_path = os.path.join(input_dir, file.filename)
 
     with open(save_path, "wb") as f:
         content = await file.read()
         f.write(content)
 
+    # ============================================
+    # ✅ 如果是 ZIP，自动解压并扁平化
+    # ============================================
+    extracted_dir = None
+    unzip_message = None
+
+    if file.filename.endswith(".zip"):
+        try:
+            extracted_dir = os.path.join(input_dir, "extracted")
+            os.makedirs(extracted_dir, exist_ok=True)
+
+            with zipfile.ZipFile(save_path, 'r') as zip_ref:
+                # ✅ 获取 ZIP 内的
+                file_list = zip_ref.namelist()
+
+                # ✅ 关键：如果只有一个顶层目录，直接解压其内容
+                if len(file_list) == 1 and file_list[0].endswith('/'):
+                    # 只有一个目录，解压其内容到 extracted_dir
+                    zip_ref.extractall(extracted_dir)
+
+                    # ✅ 删除空的顶层目录，将内容移到上一层
+                    top_dir = os.path.join(extracted_dir, os.path.basename(file_list[0].rstrip('/')))
+                    if os.path.exists(top_dir):
+                        for item in os.listdir(top_dir):
+                            shutil.move(
+                                os.path.join(top_dir, item),
+                                extracted_dir
+                            )
+                        os.rmdir(top_dir)
+                else:
+                    # 多个文件或复杂结构，直接解压
+                    zip_ref.extractall(extracted_dir)
+
+                    # ✅ 关键：如果解压后只有一个子目录，将其内容移到上一层
+                    subdirs = [d for d in os.listdir(extracted_dir)
+                               if os.path.isdir(os.path.join(extracted_dir, d))]
+
+                    if len(subdirs) == 1:
+                        subdir = os.path.join(extracted_dir, subdirs[0])
+                        for item in os.listdir(subdir):
+                            shutil.move(
+                                os.path.join(subdir, item),
+                                extracted_dir
+                            )
+                        os.rmdir(subdir)
+
+            # ✅ 更新 save_path 为扁平化后的目录
+            save_path = extracted_dir
+            unzip_message = f"✅ ZIP 已自动解压并扁平化到: {extracted_dir}"
+
+        except zipfile.BadZipFile:
+            unzip_message = "⚠️ ZIP 文件格式错误，已保存原始文件"
+        except Exception as e:
+            unzip_message = f"⚠️ 解压失败: {str(e)}，已保存原始 ZIP 文件"
+
+    # ============================================
+    # ✅ 返回完整信息
+    # ============================================
     return {
         "success": True,
         "task_id": task_id,
-        "input_file": save_path,
-        "title": title,  # ✅ 返回 title，方便前端显示
+        "input_file": save_path,  # ✅ 扁平化后的路径
+        "title": title,
+        "filename": file.filename,
+        "file_type": "zip" if file.filename.endswith(".zip") else "single",
+        "unzip_message": unzip_message,
+        "extracted_dir": extracted_dir,
     }
 
 
