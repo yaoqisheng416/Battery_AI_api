@@ -8,6 +8,8 @@ import zipfile
 import logging
 from datetime import datetime
 from http.client import HTTPException
+from pathlib import Path
+
 import uvicorn
 
 from fastapi import FastAPI, UploadFile, File, Query, Form
@@ -479,39 +481,73 @@ def download_file(
 
 # 获取处理结果展示
 @app.get("/task/results/list")
-def list_task_results(task_id: str = Query(...)):
-    base_dir = os.path.join(
-        "workspace",
-        "tasks",
-        task_id,
-        "out_put"
-    )
+def list_task_results(task_id: str):
+    """列出任务输出目录下的所有文件和文件夹"""
 
-    print("base_dir:", base_dir)
+    logger.info(f"📥 请求：task_id={task_id}")
 
-    if not os.path.exists(base_dir):
-        return {
-            "files": [],
-            "debug": "dir not exists",
-            "path": base_dir
-        }
+    # ✅ 构建标准化路径
+    output_dir = f"workspace/tasks/{task_id}/out_put"
+    output_dir = output_dir.replace("\\", "/")
 
-    results = []
+    # ✅ 转换为绝对路径
+    full_path = Path.cwd() / output_dir
+    full_path = full_path.resolve()
 
-    for root, _, files in os.walk(base_dir):
+    logger.info(f"🔍 路径: {full_path}")
+    logger.info(f"🔍 存在: {full_path.exists()}")
 
-        for f in files:
-            full = os.path.join(root, f)
+    # ✅ 检查路径
+    if not full_path.exists():
+        logger.warning(f"⚠️ 路径不存在: {full_path}")
+        return {"files": []}
 
-            results.append({
-                "name": f,
-                "path": full,
-                "type": "file"
-            })
+    if not full_path.is_dir():
+        logger.warning(f"⚠️ 不是目录: {full_path}")
+        return {"files": []}
 
-    return {
-        "files": results
-    }
+    files = []
+
+    try:
+        # ✅ 遍历文件和文件夹
+        for root, dirs, files_list in os.walk(full_path):
+
+            # =============================================
+            # ✅ 修复1：遍历文件（缩进正确）
+            # =============================================
+            for f in files_list:
+                full_file_path = Path(root) / f
+                rel_path = full_file_path.relative_to(full_path)
+                rel_path_str = str(rel_path).replace("\\", "/")  # ✅ 在循环内
+
+                files.append({
+                    "name": f,
+                    "path": rel_path_str,
+                    "is_dir": False,
+                    "size": os.path.getsize(full_file_path),
+                })
+
+            # =============================================
+            # ✅ 修复2：遍历文件夹（缩进正确）
+            # =============================================
+            for d in dirs:
+                full_dir_path = Path(root) / d
+                rel_path = full_dir_path.relative_to(full_path)
+                rel_path_str = str(rel_path).replace("\\", "/") + "/"  # ✅ 在循环内
+
+                files.append({
+                    "name": d,
+                    "path": rel_path_str,
+                    "is_dir": True,
+                    "size": 0,
+                })
+
+        logger.info(f"✅ 找到 {len(files)} 个文件/文件夹")
+        return {"files": files}
+
+    except Exception as e:
+        logger.error(f"❌ 遍历失败: {str(e)}", exc_info=True)
+        return {"files": []}
 
 
 # 下载单个文件
@@ -532,35 +568,67 @@ def download_file(path: str):
 # 下载为zip包
 @app.get("/download/dir")
 def download_dir(path: str):
-    if not os.path.exists(path):
-        raise HTTPException(404, "not found")
+    """下载目录（ZIP）"""
 
-    if not os.path.isdir(path):
-        raise HTTPException(400, "not a directory")
+    logger.info(f"📥 下载目录请求: {path}")
 
-    tmp_zip = tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".zip"
-    )
+    # ✅ 修复1：统一使用 / 作为分隔符（跨平台）
+    normalized_path = path.replace("\\", "/")
 
-    with zipfile.ZipFile(tmp_zip.name, "w") as z:
+    # ✅ 修复2：构建绝对路径
+    if os.path.isabs(normalized_path):
+        full_path = Path(normalized_path)
+    else:
+        full_path = Path.cwd() / normalized_path
 
-        for root, _, files in os.walk(path):
+    # ✅ 修复3：标准化路径（解析符号链接、规范化分隔符）
+    full_path = full_path.resolve()
 
-            for f in files:
-                full_path = os.path.join(root, f)
+    logger.info(f"🔍 标准化路径: {full_path}")
+    logger.info(f"🔍 路径存在: {full_path.exists()}")
+    logger.info(f"🔍 是否目录: {full_path.is_dir()}")
 
-                arcname = os.path.relpath(
-                    full_path,
-                    path
-                )
+    if not full_path.exists():
+        logger.error(f"❌ 路径不存在: {full_path}")
+        raise HTTPException(404, f"路径不存在: {path}")
 
-                z.write(full_path, arcname)
+    if not full_path.is_dir():
+        logger.error(f"❌ 不是目录: {full_path}")
+        raise HTTPException(400, f"不是目录: {path}")
 
-    return FileResponse(
-        tmp_zip.name,
-        filename=os.path.basename(path) + ".zip"
-    )
+    tmp_zip = None
+    try:
+        tmp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+        logger.info(f"📦 临时 ZIP 文件: {tmp_zip.name}")
+
+        with zipfile.ZipFile(tmp_zip.name, "w") as z:
+            file_count = 0
+            for root, _, files in os.walk(full_path):
+                for f in files:
+                    full_file_path = Path(root) / f
+                    arcname = full_file_path.relative_to(full_path)
+                    z.write(full_file_path, arcname)
+                    file_count += 1
+
+            logger.info(f"✅ 打包完成: {file_count} 个文件")
+
+        return FileResponse(
+            tmp_zip.name,
+            filename=full_path.name + ".zip",
+            media_type="application/zip"
+        )
+
+    except Exception as e:
+        logger.error(f"❌ 打包失败: {str(e)}", exc_info=True)
+        raise HTTPException(500, f"打包失败: {str(e)}")
+
+    finally:
+        if tmp_zip and os.path.exists(tmp_zip.name):
+            try:
+                os.unlink(tmp_zip.name)
+                logger.info(f"🧹 清理临时文件: {tmp_zip.name}")
+            except:
+                pass
 
 
 # ============================================
